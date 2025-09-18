@@ -1,5 +1,14 @@
 import React, { useState } from "react";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+import { auth, db } from "../../firebase/firebase";
+import { doc, setDoc } from "firebase/firestore";
+
 const AddUser = ({ canAddRoles = ["user"] }) => {
   const [profilePic, setProfilePic] = useState(null);
   const [firstName, setFirstName] = useState("");
@@ -76,7 +85,7 @@ const AddUser = ({ canAddRoles = ["user"] }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     validateFirstName(firstName);
     validateLastName(lastName);
@@ -96,22 +105,47 @@ const AddUser = ({ canAddRoles = ["user"] }) => {
       phone &&
       password
     ) {
-      console.log({
-        profilePic,
-        firstName,
-        lastName,
-        email,
-        phone,
-        password,
-        role,
-      });
-      alert("User added successfully!");
+      try {
+        // 1.Create user in Firebase Authentication
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+        const uid = userCredential.user.uid;
+
+        // 2️ Save user info to Firestore
+        await setDoc(doc(db, "users", uid), {
+          uid,
+          firstName,
+          lastName,
+          email,
+          phone,
+          role,
+          profilePic,
+          createdAt: new Date(),
+        });
+
+        // 3️ Send email with temporary password
+        await sendPasswordResetEmail(auth, email);
+
+        toast.success("User added & email sent!");
+        // reset form
+        setFirstName("");
+        setLastName("");
+        setEmail("");
+        setPhone("");
+        setPassword("");
+        setRole(canAddRoles[0] || "user");
+        setProfilePic(null);
+      } catch (error) {
+        toast.error("Error: " + error.message);
+      }
     } else {
-      alert("Please fix the errors before submitting.");
+      toast.error("Please fix the errors before submitting.");
     }
   };
 
-  // Determine heading based on roles
   const getHeading = () => {
     if (canAddRoles.includes("superadmin") || canAddRoles.includes("admin")) {
       return "Add New Admin";
@@ -217,7 +251,7 @@ const AddUser = ({ canAddRoles = ["user"] }) => {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             onBlur={(e) => validatePhone(e.target.value)}
-            placeholder="Enter phone umber"
+            placeholder="Enter phone number"
             className={`border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-400 outline-none ${
               phoneError ? "border-red-500" : ""
             }`}
@@ -227,13 +261,13 @@ const AddUser = ({ canAddRoles = ["user"] }) => {
           )}
         </div>
 
+        {/* Password */}
         <div className="flex flex-col col-span-1 md:col-span-2">
           <label className="text-sm font-medium text-gray-600 mb-1">
             Password
           </label>
 
           <div className="flex gap-2">
-            {/* Password Input with Eye Icon */}
             <div className="relative flex-1">
               <input
                 type={showPassword ? "text" : "password"}
@@ -260,7 +294,6 @@ const AddUser = ({ canAddRoles = ["user"] }) => {
               </button>
             </div>
 
-            {/* Generate Button */}
             <button
               type="button"
               onClick={generatePassword}
@@ -270,7 +303,6 @@ const AddUser = ({ canAddRoles = ["user"] }) => {
             </button>
           </div>
 
-          {/* Error Message */}
           {passwordError && (
             <span className="text-red-500 text-sm mt-1">{passwordError}</span>
           )}
@@ -322,6 +354,19 @@ const AddUser = ({ canAddRoles = ["user"] }) => {
           </button>
         </div>
       </form>
+
+      {/* Toast Container */}
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
     </div>
   );
 };

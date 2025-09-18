@@ -8,7 +8,6 @@ import {
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
-  sendPasswordResetEmail,
 } from "firebase/auth";
 import {
   doc,
